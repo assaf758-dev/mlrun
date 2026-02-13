@@ -18,7 +18,7 @@ jobs:
   system-tests:
     uses: assaf758-dev/mlrun/.github/workflows/system-tests-opensource.yml@dest
     with:
-      pr_number: ${{ github.event.pull_request.number }}
+      pr_number: "${{ github.event.pull_request.number }}"
     secrets:
       DOCKER_HUB_DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
       DOCKER_HUB_DOCKER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
