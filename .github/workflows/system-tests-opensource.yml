@@ -19,7 +19,48 @@ permissions:
   packages: write
   
 on:
-   workflow_dispatch:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'PR number to run the system tests against'
+        type: string
+        default: ''
+      pytest_markers:
+        description: 'Pytest markers to run'
+        type: string
+        default: 'not enterprise and smoke'
+      clean_resources_in_teardown:
+        description: 'Clean test resources upon test teardown'
+        type: string
+        default: 'true'
+      debug_enabled:
+        description: 'Allow SSH debugging'
+        type: string
+        default: 'false'
+    secrets:
+      DOCKER_HUB_DOCKER_REGISTRY_USERNAME:
+        required: true
+      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD:
+        required: true
+      SYSTEM_TEST_GITHUB_ACCESS_TOKEN:
+        required: true
+      OPENAI_BASE_URL:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      # Needed by build-internal.yaml (via secrets: inherit)
+      QUAY_IO_DOCKER_REGISTRY_USERNAME:
+        required: false
+      QUAY_IO_DOCKER_REGISTRY_PASSWORD:
+        required: false
+      ARTIFACTORY_URL:
+        required: false
+      ARTIFACTORY_USERNAME:
+        required: false
+      ARTIFACTORY_PASSWORD:
+        required: false
+
+  workflow_dispatch:
     inputs:
       pr_number:
         description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
@@ -109,7 +150,7 @@ jobs:
               rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
 
       - name: Set computed versions params
         id: computed_params
@@ -143,15 +184,15 @@ jobs:
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
 
       - name: Print mlrun_hash value
         run: |
           echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
 
   build-mlrun:
-    if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
+    if: github.event_name == 'pull_request' || inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -251,7 +292,7 @@ jobs:
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
-      if: ${{ (github.event.inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
+      if: ${{ (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -465,7 +506,7 @@ jobs:
         source venv/bin/activate
         make test-system-open-source
       env:
-        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
+        PYTEST_MARKERS: ${{ inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
     - name: Output  logs
       if: always()
