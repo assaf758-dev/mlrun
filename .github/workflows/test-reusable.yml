@@ -10,9 +10,6 @@ on:
       pr_number:
         type: string
         default: ''
-      pytest_markers:
-        type: string
-        default: 'not enterprise and smoke'
     secrets:
       DOCKER_HUB_DOCKER_REGISTRY_USERNAME:
         required: true
@@ -30,22 +27,9 @@ on:
 
 env:
   NAMESPACE: mlrun
-  MLRUN_API_NODE_PORT: 30070
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      pr_num: ${{ steps.out.outputs.pr_num }}
-    steps:
-      - uses: actions/checkout@v6
-      - id: out
-        run: echo "pr_num=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
-
   test-job:
-    if: inputs.pr_number != ''
-    needs: prepare
-    runs-on:
-      group: mlrun-ce
+    runs-on: ubuntu-latest
     steps:
-      - run: echo "PR=${{ needs.prepare.outputs.pr_num }} NS=$NAMESPACE"
+      - run: echo "PR=${{ inputs.pr_number }} NS=$NAMESPACE"
