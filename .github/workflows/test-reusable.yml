@@ -1,9 +1,5 @@
 name: Test Reusable
 
-permissions:
-  contents: read
-  packages: write
-
 on:
   workflow_call:
     inputs:
@@ -18,11 +14,8 @@ on:
         required: false
         default: ''
 
-env:
-  NAMESPACE: mlrun
-
 jobs:
   echo-job:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "PR=${{ inputs.pr_number }} NS=$NAMESPACE"
+      - run: echo "PR=${{ inputs.pr_number }}"
