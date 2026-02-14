@@ -1,14 +1,51 @@
 name: Test Reusable
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   workflow_call:
     inputs:
-      message:
+      pr_number:
         type: string
-        default: 'hello'
+        default: ''
+      pytest_markers:
+        type: string
+        default: 'not enterprise and smoke'
+    secrets:
+      DOCKER_HUB_DOCKER_REGISTRY_USERNAME:
+        required: true
+      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD:
+        required: true
+      SYSTEM_TEST_GITHUB_ACCESS_TOKEN:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number'
+        required: false
+        default: ''
+
+env:
+  NAMESPACE: mlrun
+  MLRUN_API_NODE_PORT: 30070
 
 jobs:
-  echo-job:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      pr_num: ${{ steps.out.outputs.pr_num }}
     steps:
-      - run: echo "${{ inputs.message }}"
+      - uses: actions/checkout@v6
+      - id: out
+        run: echo "pr_num=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+
+  test-job:
+    if: inputs.pr_number != ''
+    needs: prepare
+    runs-on:
+      group: mlrun-ce
+    steps:
+      - run: echo "PR=${{ needs.prepare.outputs.pr_num }} NS=$NAMESPACE"
