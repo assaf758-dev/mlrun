@@ -10,7 +10,3 @@ jobs:
     uses: assaf758-dev/mlrun/.github/workflows/test-reusable.yml@dest
     with:
       pr_number: "2"
-    secrets:
-      DOCKER_HUB_DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
-      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
-      SYSTEM_TEST_GITHUB_ACCESS_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}
