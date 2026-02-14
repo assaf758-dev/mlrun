@@ -10,13 +10,6 @@ on:
       pr_number:
         type: string
         default: ''
-    secrets:
-      DOCKER_HUB_DOCKER_REGISTRY_USERNAME:
-        required: true
-      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD:
-        required: true
-      SYSTEM_TEST_GITHUB_ACCESS_TOKEN:
-        required: true
 
   workflow_dispatch:
     inputs:
