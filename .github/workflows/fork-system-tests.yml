@@ -1,3 +1,12 @@
+# Caller workflow for running system tests from a fork.
+# Calls the reusable system-tests-opensource.yml workflow.
+#
+# Prerequisites:
+#   Configure these secrets in your fork's repo settings (Settings > Secrets and variables > Actions):
+#     - DOCKER_HUB_DOCKER_REGISTRY_USERNAME
+#     - DOCKER_HUB_DOCKER_REGISTRY_PASSWORD
+#     - SYSTEM_TEST_GITHUB_ACCESS_TOKEN
+
 name: "System Tests (Fork)"
 
 on:
@@ -6,7 +15,18 @@ on:
       - dest
 
 jobs:
-  test:
-    uses: assaf758-dev/mlrun/.github/workflows/test-reusable.yml@dest
+  system-tests:
+    uses: assaf758-dev/mlrun/.github/workflows/system-tests-opensource.yml@dest
     with:
-      pr_number: "2"
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets:
+      DOCKER_HUB_DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+      SYSTEM_TEST_GITHUB_ACCESS_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      QUAY_IO_DOCKER_REGISTRY_USERNAME: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+      QUAY_IO_DOCKER_REGISTRY_PASSWORD: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+      ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+      ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+      ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
