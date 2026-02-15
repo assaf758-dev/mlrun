@@ -208,6 +208,20 @@ jobs:
         python3 -m venv $GITHUB_WORKSPACE/.venv
         echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
+    - name: Detect runner architecture
+      id: detect_arch
+      run: |
+        # Map uname -m output to Docker platform architecture
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  DOCKER_ARCH="amd64" ;;
+          aarch64) DOCKER_ARCH="arm64" ;;
+          arm64)   DOCKER_ARCH="arm64" ;;
+          *)       DOCKER_ARCH="amd64" ;;
+        esac
+        echo "docker_platform=linux/${DOCKER_ARCH}" >> $GITHUB_OUTPUT
+        echo "Detected architecture: ${ARCH} -> Docker platform: linux/${DOCKER_ARCH}"
+
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
@@ -216,6 +230,7 @@ jobs:
       run: |
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
+            DOCKER_DEFAULT_PLATFORM=${{ steps.detect_arch.outputs.docker_platform }} \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
@@ -237,6 +252,7 @@ jobs:
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \
+            DOCKER_DEFAULT_PLATFORM=${{ steps.detect_arch.outputs.docker_platform }} \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \
             MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
@@ -251,6 +267,7 @@ jobs:
       # When version is given we're probably in a release process, we don't need the test image in that case
       if: matrix.image-name == 'test' && inputs.version == ''
       run: |
+        DOCKER_DEFAULT_PLATFORM=${{ steps.detect_arch.outputs.docker_platform }} \
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \

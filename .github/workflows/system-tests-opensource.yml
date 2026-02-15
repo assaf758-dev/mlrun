@@ -202,6 +202,10 @@ jobs:
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
       cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
 
+      # Use self-hosted runner so images are built for the same architecture
+      # as the system test runner (arm64 on Apple Silicon)
+      runner: self-hosted
+
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
       # TODO: support patching jupyter as well (maybe on demand?)
