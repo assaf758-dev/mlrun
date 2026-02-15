@@ -202,10 +202,6 @@ jobs:
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
       cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
 
-      # Use self-hosted runner so images are built for the same architecture
-      # as the system test runner (arm64 on Apple Silicon)
-      runner: self-hosted
-
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
       # TODO: support patching jupyter as well (maybe on demand?)
@@ -435,6 +431,44 @@ jobs:
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
+
+    - name: Pre-pull amd64 images for cross-platform execution
+      if: runner.arch == 'ARM64'
+      env:
+        GHCR_TOKEN: ${{ github.token }}
+      run: |
+        echo "=== Pre-pulling amd64 images into k3s containerd ==="
+        # On ARM64 runners, images built on amd64 (GitHub-hosted ubuntu-latest)
+        # need to be imported into k3s containerd bypassing platform checks.
+        # QEMU binfmt_misc handles transparent amd64 binary execution.
+        #
+        # Strategy: Use Docker to pull with --platform linux/amd64, then
+        # export and import into k3s containerd's k8s.io namespace.
+        # This bypasses containerd's platform filtering entirely.
+
+        # Login to GHCR via Docker
+        echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+        IMAGES=(
+          "${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+          "${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+          "${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+          "${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-kfp:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        )
+
+        for img in "${IMAGES[@]}"; do
+          echo "--- Pulling (amd64): $img ---"
+          docker pull --platform linux/amd64 "$img" || { echo "Warning: Failed to pull $img"; continue; }
+
+          echo "Importing into k3s containerd..."
+          docker save "$img" | sudo k3s ctr --namespace k8s.io images import --no-unpack -
+
+          echo "Cleaning up Docker cache..."
+          docker rmi "$img" || true
+        done
+
+        echo "=== Images in k3s containerd ==="
+        sudo k3s ctr --namespace k8s.io images list | grep -E "mlrun|log-collector" || true
 
     - name: Install MLRun CE helm chart
       uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
