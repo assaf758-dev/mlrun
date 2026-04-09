@@ -493,7 +493,13 @@ jobs:
 
           # Wait a bit for cleanup to complete
           sleep 30
-          
+
+          # Build platform-specific helm overrides
+          ARM64_HELM_ARGS=""
+          if [ "${{ inputs.docker_platform }}" = "linux/arm64" ]; then
+            ARM64_HELM_ARGS="--set nuclio.controller.image.tag=1.15.24-arm64 --set nuclio.dashboard.image.tag=1.15.24-arm64 --set pipelines.enabled=false --set mpi-operator.deployment.create=false --set mlrun.ui.replicaCount=0"
+          fi
+
           python automation/deployment/ce.py deploy \
               --verbose \
               --registry-url="registry.localhost" \
@@ -516,7 +522,8 @@ jobs:
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \
-              --set kube-prometheus-stack.enabled=false
+              --set kube-prometheus-stack.enabled=false \
+              ${ARM64_HELM_ARGS}
           
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
