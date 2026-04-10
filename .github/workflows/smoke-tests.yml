@@ -42,23 +42,102 @@ on:
         options:
           - 'true'
           - 'false'
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 jobs:
+  should-run:
+    name: Check if smoke tests should run
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      should_run: ${{ steps.resolve.outputs.should_run }}
+    steps:
+      - name: Resolve PR number and check eligibility
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # workflow_dispatch: always run
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # workflow_run: only run if CI succeeded on a pull_request event
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "CI did not succeed, skipping"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [ "${{ github.event.workflow_run.event }}" != "pull_request" ]; then
+            echo "Not a PR event, skipping"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          PR=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?head=${HEAD_OWNER}:${HEAD_BRANCH}" \
+            | jq -r '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "::warning::No open PR found for ${HEAD_OWNER}:${HEAD_BRANCH}, skipping"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "pr_number=${PR}" >> $GITHUB_OUTPUT
+
+          # Check if PR targets development
+          PR_JSON=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR}")
+          BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
+
+          if [ "$BASE_REF" = "development" ]; then
+            echo "PR targets development, running smoke tests"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if PR has run-smoke label
+          HAS_LABEL=$(echo "$PR_JSON" | jq -r '[.labels[].name] | any(. == "run-smoke")')
+          if [ "$HAS_LABEL" = "true" ]; then
+            echo "PR has run-smoke label, running smoke tests"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "PR targets ${BASE_REF} without run-smoke label, skipping"
+          echo "should_run=false" >> $GITHUB_OUTPUT
+
   run-smoke-tests:
     name: Run Smoke Tests
+    needs: should-run
+    if: needs.should-run.outputs.should_run == 'true'
     uses: ./.github/workflows/system-tests-opensource.yml
     with:
-      pr_number: ${{ inputs.pr_number }}
+      pr_number: ${{ needs.should-run.outputs.pr_number }}
       pytest_markers: 'not enterprise and smoke'
-      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown }}
-      debug_enabled: ${{ inputs.debug_enabled }}
+      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown || 'true' }}
+      debug_enabled: ${{ inputs.debug_enabled || 'false' }}
     secrets: inherit
 
   post-results:
     name: Post smoke test results
     runs-on: ubuntu-latest
-    if: always() && inputs.pr_number != ''
-    needs: run-smoke-tests
+    if: always() && needs.should-run.outputs.pr_number != ''
+    needs: [should-run, run-smoke-tests]
     permissions:
       pull-requests: write
     steps:
@@ -97,7 +176,7 @@ jobs:
             const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')
             await addRemoveLabels({
               github, context,
-              prNumber: ${{ inputs.pr_number }},
+              prNumber: ${{ needs.should-run.outputs.pr_number }},
               labelsToAdd: [{ name: '${{ steps.outcome.outputs.label }}', color: '${{ steps.outcome.outputs.color }}' }],
               labelsToRemove: ['Smoke tests: Pass', 'Smoke tests: Fail', 'Smoke tests: Unknown']
             })
@@ -120,7 +199,7 @@ jobs:
       - name: Post comment to PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
         with:
-          pr-number: ${{ inputs.pr_number }}
+          pr-number: ${{ needs.should-run.outputs.pr_number }}
           file-path: comment.md
           comment-tag: smoke_test_result
           mode: recreate
