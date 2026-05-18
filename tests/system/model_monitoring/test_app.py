@@ -2629,3 +2629,6 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         # As for the model endpoint with sampling, the effective sample count should be around 155
         # corresponding to the 15.5% sampling. We will validate that it is not equal to 1000.
         assert predictions_df_with_sample["effective_sample_count"].sum() != 1000
+# Cancellation test commit 1 (1779122853)
+# Cancellation test commit 2 (1779125810)
+# Cancellation test commit 3 (1779125937)
